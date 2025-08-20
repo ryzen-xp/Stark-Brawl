@@ -79,7 +79,7 @@ impl RewardPoolImpl of RewardPoolTrait {
 
 #[cfg(test)]
 mod tests {
-    use super::{Reward, RewardPool, RewardTrait, RewardPoolTrait};
+    use super::{RewardTrait, RewardPoolTrait};
     use starknet::contract_address_const;
 
     #[test]

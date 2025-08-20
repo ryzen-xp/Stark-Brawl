@@ -6,17 +6,13 @@ mod tests {
     use dojo::world::{WorldStorage};
 
     use stark_brawl::models::tower::{Tower, TowerImpl, ZeroableTower};
-    use stark_brawl::models::trap::{
-        Trap, TrapTrait, TrapType, ZeroableTrapTrait, Vec2, create_trap,
-    };
+    use stark_brawl::models::trap::{Trap, TrapType, ZeroableTrapTrait, Vec2, create_trap};
     use stark_brawl::models::wave::{Wave, WaveImpl};
     use stark_brawl::models::enemy::{Enemy, EnemyImpl};
     use stark_brawl::models::statistics::{Statistics, StatisticsImpl, ZeroableStatistics};
-    use stark_brawl::models::leaderboard::{
-        LeaderboardEntry, ILeaderboardEntry, ZeroableLeaderboardEntry,
-    };
+    use stark_brawl::models::leaderboard::{LeaderboardEntry, ZeroableLeaderboardEntry};
     use stark_brawl::store::{Store, StoreTrait};
-    use starknet::{ContractAddress, contract_address_const};
+    use starknet::{contract_address_const};
     use stark_brawl::models::player::{Player, PlayerImpl, spawn_player};
 
     // System imports
@@ -1036,6 +1032,94 @@ mod tests {
 
         let final_enemy_2 = store.read_enemy(enemy_2.id);
         assert!(final_enemy_2.reward_claimed == true, "Enemy 2 reward should now be claimed");
+    }
+
+    /// Player oprations
+
+    #[test]
+    fn test_spend_coins_success() {
+        let world = create_test_world();
+        let mut store: Store = StoreTrait::new(world);
+
+        let mut player = spawn_player(contract_address_const::<0x123>());
+        player.coins = 100;
+        store.write_player(@player);
+
+        let updated_player = store.spend_coins(player, 40);
+        assert!(updated_player.coins == 60, "Coins_should_dec_by_40");
+    }
+
+    #[test]
+    #[should_panic(expected: 'Not_enough_coins')]
+    fn test_spend_coins_insufficient() {
+        let world = create_test_world();
+        let mut store: Store = StoreTrait::new(world);
+
+        let mut player = spawn_player(contract_address_const::<0x123>());
+        player.coins = 30;
+        store.write_player(@player);
+
+        store.spend_coins(player, 50);
+    }
+
+    #[test]
+    fn test_spend_gems_success() {
+        let world = create_test_world();
+        let mut store: Store = StoreTrait::new(world);
+
+        let mut player = spawn_player(contract_address_const::<0x456>());
+        player.gems = 80;
+        store.write_player(@player);
+
+        let updated_player = store.spend_gems(player, 20);
+        assert_eq!(updated_player.gems, 60);
+    }
+
+    #[test]
+    #[should_panic(expected: 'Not_enough_gems')]
+    fn test_spend_gems_insufficient() {
+        let world = create_test_world();
+        let mut store: Store = StoreTrait::new(world);
+
+        let mut player = spawn_player(contract_address_const::<0x456>());
+        player.gems = 25;
+        store.write_player(@player);
+
+        store.spend_gems(player, 50);
+    }
+
+    #[test]
+    fn test_adding_positive_amounts() {
+        let world = create_test_world();
+        let mut store: Store = StoreTrait::new(world);
+
+        let mut player = spawn_player(contract_address_const::<0xABC>());
+        player.coins = 0;
+        player.gems = 0;
+        store.write_player(@player);
+
+        let player_after_coins = store.add_coins(player, 100);
+        assert_eq!(player_after_coins.coins, 100, "Coins_should_increase_by_100");
+
+        let player_after_gems = store.add_gems(player_after_coins, 50);
+        assert_eq!(player_after_gems.gems, 50, "Gems_should_increase_by_50");
+    }
+
+    #[test]
+    fn test_spend_exact_amount_leaves_zero() {
+        let world = create_test_world();
+        let mut store: Store = StoreTrait::new(world);
+
+        let mut player = spawn_player(contract_address_const::<0xDEF>());
+        player.coins = 100;
+        player.gems = 50;
+        store.write_player(@player);
+
+        let player_after_coins = store.spend_coins(player, 100);
+        assert_eq!(player_after_coins.coins, 0, "Coins_should_be_zero_after_spending_exact_amount");
+
+        let player_after_gems = store.spend_gems(player_after_coins, 50);
+        assert_eq!(player_after_gems.gems, 0, "Gems_should_be_zero_after_spending_exact_amount");
     }
 }
 

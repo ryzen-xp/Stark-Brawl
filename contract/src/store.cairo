@@ -93,6 +93,42 @@ pub impl StoreImpl of StoreTrait {
         self.world.write_model(player);
     }
 
+    #[inline]
+    fn add_coins(ref self: Store, mut player: Player, amount: u64) -> Player {
+        assert(player.address.is_non_zero(), 'Player_not_exist');
+        player.coins += amount;
+        self.write_player(@player);
+        player
+    }
+
+    #[inline]
+    fn add_gems(ref self: Store, mut player: Player, amount: u64) -> Player {
+        assert(player.address.is_non_zero(), 'Player_not_exist');
+        player.gems += amount;
+        self.write_player(@player);
+        player
+    }
+
+
+    #[inline]
+    fn spend_coins(ref self: Store, mut player: Player, amount: u64) -> Player {
+        assert(player.address.is_non_zero(), 'Player_not_exist');
+        assert(player.coins >= amount, 'Not_enough_coins');
+        player.coins -= amount;
+        self.write_player(@player);
+        player
+    }
+
+    #[inline]
+    fn spend_gems(ref self: Store, mut player: Player, amount: u64) -> Player {
+        assert(player.address.is_non_zero(), 'Player_not_exist');
+        assert(player.gems >= amount, 'Not_enough_gems');
+        player.gems -= amount;
+        self.write_player(@player);
+        player
+    }
+
+
     // -------------------------------
     // Wave operations
     // -------------------------------
@@ -323,23 +359,6 @@ pub impl StoreImpl of StoreTrait {
 
         // Persist updated stats
         self.write_statistics(@updated_stats);
-    }
-
-    // Simple helpers to add coins and gems to player
-    #[inline]
-    fn add_coins(ref self: Store, mut player: Player, amount: u64) -> Player {
-        let new_coins = player.coins + amount;
-        player.coins = new_coins;
-        self.write_player(@player);
-        player
-    }
-
-    #[inline]
-    fn add_gems(ref self: Store, mut player: Player, amount: u64) -> Player {
-        let new_gems = player.gems + amount;
-        player.gems = new_gems;
-        self.write_player(@player);
-        player
     }
 
     #[inline]
