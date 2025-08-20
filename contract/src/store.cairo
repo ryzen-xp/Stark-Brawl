@@ -84,8 +84,8 @@ pub impl StoreImpl of StoreTrait {
     // Player operations
     // -------------------------------
     #[inline]
-    fn read_player(self: @Store, player_id: felt252) -> Player {
-        self.world.read_model(player_id)
+    fn read_player(self: @Store, player_address: ContractAddress) -> Player {
+        self.world.read_model(player_address)
     }
 
     #[inline]
@@ -94,15 +94,17 @@ pub impl StoreImpl of StoreTrait {
     }
 
     #[inline]
-    fn add_coins(ref self: Store, mut player: Player, amount: u64) -> Player {
+    fn add_coins(ref self: Store, player_address: ContractAddress, amount: u64) -> Player {
+        let mut player = self.read_player(player_address);
         assert(player.address.is_non_zero(), 'Player_not_exist');
         player.coins += amount;
         self.write_player(@player);
         player
     }
 
-    #[inline]
-    fn add_gems(ref self: Store, mut player: Player, amount: u64) -> Player {
+
+    fn add_gems(ref self: Store, player_address: ContractAddress, amount: u64) -> Player {
+        let mut player = self.read_player(player_address);
         assert(player.address.is_non_zero(), 'Player_not_exist');
         player.gems += amount;
         self.write_player(@player);
@@ -111,7 +113,8 @@ pub impl StoreImpl of StoreTrait {
 
 
     #[inline]
-    fn spend_coins(ref self: Store, mut player: Player, amount: u64) -> Player {
+    fn spend_coins(ref self: Store, player_address: ContractAddress, amount: u64) -> Player {
+        let mut player = self.read_player(player_address);
         assert(player.address.is_non_zero(), 'Player_not_exist');
         assert(player.coins >= amount, 'Not_enough_coins');
         player.coins -= amount;
@@ -120,7 +123,8 @@ pub impl StoreImpl of StoreTrait {
     }
 
     #[inline]
-    fn spend_gems(ref self: Store, mut player: Player, amount: u64) -> Player {
+    fn spend_gems(ref self: Store, player_address: ContractAddress, amount: u64) -> Player {
+        let mut player = self.read_player(player_address);
         assert(player.address.is_non_zero(), 'Player_not_exist');
         assert(player.gems >= amount, 'Not_enough_gems');
         player.gems -= amount;

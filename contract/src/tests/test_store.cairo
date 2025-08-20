@@ -1041,12 +1041,13 @@ mod tests {
         let world = create_test_world();
         let mut store: Store = StoreTrait::new(world);
 
-        let mut player = spawn_player(contract_address_const::<0x123>());
+        let player_id = contract_address_const::<0x456>();
+        let mut player = spawn_player(player_id);
         player.coins = 100;
         store.write_player(@player);
 
-        let updated_player = store.spend_coins(player, 40);
-        assert!(updated_player.coins == 60, "Coins_should_dec_by_40");
+        let updated_player = store.spend_coins(player_id, 40);
+        assert_eq!(updated_player.coins, 60, "Coins_should_decrement_by_40");
     }
 
     #[test]
@@ -1055,11 +1056,12 @@ mod tests {
         let world = create_test_world();
         let mut store: Store = StoreTrait::new(world);
 
-        let mut player = spawn_player(contract_address_const::<0x123>());
+        let player_id = contract_address_const::<0x456>();
+        let mut player = spawn_player(player_id);
         player.coins = 30;
         store.write_player(@player);
 
-        store.spend_coins(player, 50);
+        store.spend_coins(player_id, 50);
     }
 
     #[test]
@@ -1067,12 +1069,13 @@ mod tests {
         let world = create_test_world();
         let mut store: Store = StoreTrait::new(world);
 
+        let player_id = contract_address_const::<0x456>();
         let mut player = spawn_player(contract_address_const::<0x456>());
         player.gems = 80;
         store.write_player(@player);
 
-        let updated_player = store.spend_gems(player, 20);
-        assert_eq!(updated_player.gems, 60);
+        let updated_player = store.spend_gems(player_id, 20);
+        assert_eq!(updated_player.gems, 60, "Gems_should_decrement_by_20");
     }
 
     #[test]
@@ -1081,11 +1084,12 @@ mod tests {
         let world = create_test_world();
         let mut store: Store = StoreTrait::new(world);
 
+        let player_id = contract_address_const::<0x456>();
         let mut player = spawn_player(contract_address_const::<0x456>());
         player.gems = 25;
         store.write_player(@player);
 
-        store.spend_gems(player, 50);
+        store.spend_gems(player_id, 50);
     }
 
     #[test]
@@ -1093,15 +1097,16 @@ mod tests {
         let world = create_test_world();
         let mut store: Store = StoreTrait::new(world);
 
-        let mut player = spawn_player(contract_address_const::<0xABC>());
+        let player_id = contract_address_const::<0x456>();
+        let mut player = spawn_player(player_id);
         player.coins = 0;
         player.gems = 0;
         store.write_player(@player);
 
-        let player_after_coins = store.add_coins(player, 100);
+        let player_after_coins = store.add_coins(player_id, 100);
         assert_eq!(player_after_coins.coins, 100, "Coins_should_increase_by_100");
 
-        let player_after_gems = store.add_gems(player_after_coins, 50);
+        let player_after_gems = store.add_gems(player_id, 50);
         assert_eq!(player_after_gems.gems, 50, "Gems_should_increase_by_50");
     }
 
@@ -1110,16 +1115,17 @@ mod tests {
         let world = create_test_world();
         let mut store: Store = StoreTrait::new(world);
 
-        let mut player = spawn_player(contract_address_const::<0xDEF>());
+        let player_id = contract_address_const::<0x456>();
+        let mut player = spawn_player(player_id);
         player.coins = 100;
         player.gems = 50;
         store.write_player(@player);
 
-        let player_after_coins = store.spend_coins(player, 100);
-        assert_eq!(player_after_coins.coins, 0, "Coins_should_be_zero_after_spending_exact_amount");
+        let player_after_coins = store.spend_coins(player_id, 100);
+        assert_eq!(player_after_coins.coins, 0, "Coins_should_be_zero_after_spending_exact-amount");
 
-        let player_after_gems = store.spend_gems(player_after_coins, 50);
-        assert_eq!(player_after_gems.gems, 0, "Gems_should_be_zero_after_spending_exact_amount");
+        let player_after_gems = store.spend_gems(player_id, 50);
+        assert_eq!(player_after_gems.gems, 0, "Gems_should_be zero_after_spending_exact_amount");
     }
 }
 
