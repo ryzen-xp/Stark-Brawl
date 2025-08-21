@@ -4,6 +4,9 @@ mod tests {
         spawn_test_world,
     };
     use dojo::world::{WorldStorage};
+    use dojo::model::ModelStorage;
+    use dojo::world::IWorldDispatcherTrait;
+    use dojo::world::WorldStorageTrait;
 
     use stark_brawl::models::tower::{Tower, TowerImpl, ZeroableTower};
     use stark_brawl::models::trap::{Trap, TrapType, ZeroableTrapTrait, Vec2, create_trap};
@@ -15,8 +18,11 @@ mod tests {
     use starknet::{contract_address_const};
     use stark_brawl::models::player::{Player, PlayerImpl, spawn_player};
 
-    // System imports
-    use stark_brawl::systems::game::{brawl_game};
+    // Systems and Dispatchers
+    use stark_brawl::systems::game::{brawl_game, IBrawlGameDispatcher, IBrawlGameDispatcherTrait};
+    use stark_brawl::systems::player::{
+        player_system, IPlayerSystemDispatcher, IPlayerSystemDispatcherTrait,
+    };
 
     // Model Imports
     use stark_brawl::models::wave::{m_Wave};
@@ -45,6 +51,7 @@ mod tests {
                 TestResource::Model(m_Statistics::TEST_CLASS_HASH),
                 TestResource::Model(m_LeaderboardEntry::TEST_CLASS_HASH),
                 TestResource::Contract(brawl_game::TEST_CLASS_HASH),
+                TestResource::Contract(player_system::TEST_CLASS_HASH),
             ]
                 .span(),
         };
@@ -52,15 +59,32 @@ mod tests {
         ndef
     }
 
-    pub fn contract_defs() -> Span<ContractDef> {
+    fn create_test_player_system() -> ContractAddress {
+        let contract_defs = [
+            ContractDefTrait::new(@"brawl_game", @"player_system")
+                .with_writer_of([dojo::utils::bytearray_hash(@"brawl_game")].span()),
+        ]
+            .span();
+        let ndef = namespace_def();
+        let mut world = spawn_test_world([ndef].span());
+
+        world.sync_perms_and_inits(contract_defs);
+
+        let (contract_address, _) = world.dns(@"player_system").unwrap();
+
+        contract_address
+    }
+
+    pub fn contract_defs(player_system_contract_address: ContractAddress) -> Span<ContractDef> {
         [
             ContractDefTrait::new(@"brawl_game", @"brawl_game")
-                .with_writer_of([dojo::utils::bytearray_hash(@"brawl_game")].span()),
+                .with_writer_of([dojo::utils::bytearray_hash(@"brawl_game")].span())
+                .with_init_calldata([player_system_contract_address.into()].span()),
         ]
             .span()
     }
 
-    pub fn create_test_world() -> WorldStorage {
+    pub fn create_test_world(player_system_contract_address: ContractAddress) -> WorldStorage {
         // Initialize test environment
         let ndef = namespace_def();
 
@@ -68,7 +92,7 @@ mod tests {
         let mut world = spawn_test_world([ndef].span());
 
         // Ensures permissions and initializations are synced.
-        world.sync_perms_and_inits(contract_defs());
+        world.sync_perms_and_inits(contract_defs(player_system_contract_address));
 
         world
     }
@@ -113,7 +137,8 @@ mod tests {
 
     #[test]
     fn test_store_write_read_wave() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         let wave = create_sample_wave();
@@ -133,7 +158,8 @@ mod tests {
 
     #[test]
     fn test_store_start_wave() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         let wave = create_sample_wave();
@@ -151,7 +177,8 @@ mod tests {
 
     #[test]
     fn test_store_register_spawn() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         let wave = create_sample_wave();
@@ -168,7 +195,8 @@ mod tests {
 
     #[test]
     fn test_store_complete_wave() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         let wave = create_sample_wave();
@@ -186,7 +214,8 @@ mod tests {
     #[test]
     #[should_panic(expected: ('Wave already active',))]
     fn test_store_already_started() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         let wave = create_sample_wave();
@@ -199,7 +228,8 @@ mod tests {
     #[test]
     #[should_panic(expected: ('Wave already completed',))]
     fn test_store_not_start_after_complete_wave() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         let wave = create_sample_wave();
@@ -216,7 +246,8 @@ mod tests {
     #[test]
     #[should_panic(expected: ('Invalid spawn tick',))]
     fn test_store_not_register_spawn_after_complete_wave() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         let wave = create_sample_wave();
@@ -233,7 +264,8 @@ mod tests {
     #[test]
     #[should_panic(expected: ('Invalid spawn tick',))]
     fn test_store_register_spawn_beyond_count() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         let wave = create_sample_wave();
@@ -250,7 +282,8 @@ mod tests {
 
     #[test]
     fn test_store_spawn_enemy() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         let enemy = create_sample_enemy();
@@ -271,7 +304,8 @@ mod tests {
 
     #[test]
     fn test_store_update_enemy_health() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         let enemy = create_sample_enemy();
@@ -294,7 +328,8 @@ mod tests {
 
     #[test]
     fn test_store_move_enemy() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         let enemy = create_sample_enemy();
@@ -318,7 +353,8 @@ mod tests {
     #[test]
     #[should_panic(expected: ('Enemy is dead',))]
     fn test_store_move_dead_enemy() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         let enemy = create_sample_enemy();
@@ -331,7 +367,8 @@ mod tests {
     #[test]
     #[should_panic(expected: ('Enemy is dead',))]
     fn test_store_update_dead_enemy() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         let enemy = create_sample_enemy();
@@ -346,7 +383,8 @@ mod tests {
     // -------------------------------
     #[test]
     fn test_store_place_and_read_tower() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         let tower = create_sample_tower();
@@ -365,7 +403,8 @@ mod tests {
 
     #[test]
     fn test_store_upgrade_tower() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         let tower = create_sample_tower();
@@ -379,7 +418,8 @@ mod tests {
 
     #[test]
     fn test_store_upgrade_tower_multiple_times() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         let tower = create_sample_tower();
@@ -396,7 +436,8 @@ mod tests {
     #[test]
     #[should_panic(expected: ('MaxLevelReached',))]
     fn test_store_upgrade_tower_past_max_level() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         let tower = create_sample_tower();
@@ -414,7 +455,8 @@ mod tests {
 
     #[test]
     fn test_store_can_tower_attack_ready() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         let tower = create_sample_tower();
@@ -426,7 +468,8 @@ mod tests {
 
     #[test]
     fn test_store_can_tower_attack_cooldown() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         // Create tower with last_attack_tick = 90
@@ -442,7 +485,8 @@ mod tests {
     #[test]
     #[should_panic(expected: ('Tower not found',))]
     fn test_store_read_zero_tower() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let store: Store = StoreTrait::new(world);
 
         let _tower = store.read_tower(0_u64);
@@ -451,7 +495,8 @@ mod tests {
     #[test]
     #[should_panic(expected: ('Tower not initialized',))]
     fn test_store_place_zero_tower() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         let zero_tower = ZeroableTower::zero();
@@ -463,7 +508,8 @@ mod tests {
     // -------------------------------
     #[test]
     fn test_store_place_and_read_trap() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         let trap = create_sample_trap();
@@ -482,7 +528,8 @@ mod tests {
 
     #[test]
     fn test_store_trigger_trap() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         let trap = create_sample_trap();
@@ -500,7 +547,8 @@ mod tests {
     #[test]
     #[should_panic(expected: ('Enemy not in range',))]
     fn test_store_trigger_trap_out_of_range() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         let trap = create_sample_trap();
@@ -513,7 +561,8 @@ mod tests {
     #[test]
     #[should_panic(expected: ('Trap not active',))]
     fn test_store_trigger_inactive_trap() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         let trap = create_sample_trap();
@@ -528,7 +577,8 @@ mod tests {
 
     #[test]
     fn test_store_deactivate_trap() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         let trap = create_sample_trap();
@@ -542,7 +592,8 @@ mod tests {
 
     #[test]
     fn test_store_reactivate_trap() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         let trap = create_sample_trap();
@@ -557,7 +608,8 @@ mod tests {
 
     #[test]
     fn test_store_trap_activation_cycle() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         let trap = create_sample_trap();
@@ -582,7 +634,8 @@ mod tests {
     #[test]
     #[should_panic(expected: ('Trap not found',))]
     fn test_store_read_zero_trap() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let store: Store = StoreTrait::new(world);
 
         let _trap = store.read_trap(0_u32);
@@ -591,7 +644,8 @@ mod tests {
     #[test]
     #[should_panic(expected: ('Trap not initialized',))]
     fn test_store_place_zero_trap() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         let zero_trap = ZeroableTrapTrait::zero();
@@ -600,7 +654,8 @@ mod tests {
 
     #[test]
     fn test_store_different_trap_types() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         let explosive_trap = create_trap(
@@ -639,7 +694,8 @@ mod tests {
     // -------------------------------
     #[test]
     fn test_store_write_read_leaderboard_entry() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         let entry = create_sample_leaderboard_entry();
@@ -654,7 +710,8 @@ mod tests {
 
     #[test]
     fn test_store_update_leaderboard_new_entry() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         let player_id = contract_address_const::<0x456>();
@@ -670,7 +727,8 @@ mod tests {
 
     #[test]
     fn test_store_update_leaderboard_existing_entry() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         let player_id = contract_address_const::<0x123>();
@@ -687,7 +745,8 @@ mod tests {
 
     #[test]
     fn test_store_update_leaderboard_multiple_updates() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         let player_id = contract_address_const::<0x789>();
@@ -705,7 +764,8 @@ mod tests {
 
     #[test]
     fn test_store_read_nonexistent_leaderboard_entry() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let store: Store = StoreTrait::new(world);
 
         let player_id = contract_address_const::<0x000>();
@@ -722,7 +782,8 @@ mod tests {
     // -------------------------------
     #[test]
     fn test_store_write_read_statistics() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         let stats = create_sample_statistics();
@@ -739,7 +800,8 @@ mod tests {
 
     #[test]
     fn test_store_increment_match_result_new_player_win() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         let player_id = 'newplayer1';
@@ -757,7 +819,8 @@ mod tests {
 
     #[test]
     fn test_store_increment_match_result_new_player_defeat() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         let player_id = 'newplayer2';
@@ -775,7 +838,8 @@ mod tests {
 
     #[test]
     fn test_store_increment_match_result_existing_player() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         let player_id = 'player1';
@@ -793,7 +857,8 @@ mod tests {
 
     #[test]
     fn test_store_increment_match_result_multiple_results() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         let player_id = 'player3';
@@ -813,7 +878,8 @@ mod tests {
 
     #[test]
     fn test_store_increment_match_result_win_rate_calculation() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         let player_id = 'player4';
@@ -831,7 +897,8 @@ mod tests {
 
     #[test]
     fn test_store_increment_match_result_alternating_results() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         let player_id = 'player5';
@@ -853,7 +920,8 @@ mod tests {
 
     #[test]
     fn test_store_read_nonexistent_statistics() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let store: Store = StoreTrait::new(world);
 
         let player_id = 'nonexistent';
@@ -868,7 +936,8 @@ mod tests {
 
     #[test]
     fn test_store_statistics_different_players() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         // Test multiple different players
@@ -897,12 +966,16 @@ mod tests {
 
     #[test]
     fn test_distribute_rewards_success() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let player_system_dispatcher = IPlayerSystemDispatcher {
+            contract_address: player_system_contract_address,
+        };
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         // Setup: Create a player and a defeated enemy
         let mut player = create_sample_player();
-        let initial_coins = player.coins;
+        let initial_coins = player_system_dispatcher.get_coins(player.address);
         let initial_xp = player.xp;
         // store.write_player(@player);
 
@@ -911,12 +984,13 @@ mod tests {
         store.write_enemy(@enemy);
 
         // Action: Distribute the rewards
-        store.distribute_rewards(enemy.id, player.address);
+        store.distribute_rewards(player_system_contract_address, enemy.id, player.address);
 
         // Assertions
         let updated_player = store.read_player(player.address.into());
         assert(
-            updated_player.coins == initial_coins + enemy.coin_reward.into(),
+            player_system_dispatcher.get_coins(player.address) == initial_coins
+                + enemy.coin_reward.into(),
             'Player coins incorrect',
         );
         assert(updated_player.xp == initial_xp + enemy.xp_reward, 'Player XP incorrect');
@@ -928,7 +1002,11 @@ mod tests {
     #[test]
     #[should_panic(expected: ('Enemy must be defeated',))]
     fn test_distribute_rewards_panics_if_enemy_alive() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let player_system_dispatcher = IPlayerSystemDispatcher {
+            contract_address: player_system_contract_address,
+        };
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         // Setup: Player and an ALIVE enemy
@@ -939,13 +1017,17 @@ mod tests {
         store.write_enemy(@enemy);
 
         // Action: Attempt to distribute rewards for a live enemy (should panic)
-        store.distribute_rewards(enemy.id, player.address);
+        store.distribute_rewards(player_system_contract_address, enemy.id, player.address);
     }
 
     #[test]
     #[should_panic(expected: ('Reward already claimed',))]
     fn test_distribute_rewards_panics_if_already_claimed() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let player_system_dispatcher = IPlayerSystemDispatcher {
+            contract_address: player_system_contract_address,
+        };
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         // Setup
@@ -956,20 +1038,24 @@ mod tests {
         store.write_enemy(@enemy);
 
         // Action: Distribute rewards once (this should succeed)
-        store.distribute_rewards(enemy.id, player.address);
+        store.distribute_rewards(player_system_contract_address, enemy.id, player.address);
 
         // Action 2: Attempt to distribute again (this should panic)
-        store.distribute_rewards(enemy.id, player.address);
+        store.distribute_rewards(player_system_contract_address, enemy.id, player.address);
     }
 
     #[test]
     fn test_distribute_rewards_zero_initial_player_stats() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let player_system_dispatcher = IPlayerSystemDispatcher {
+            contract_address: player_system_contract_address,
+        };
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         // Setup: Player with zero coins and XP
         let mut player = create_sample_player();
-        player.coins = 0;
+        // player.coins = 0;
         player.xp = 0;
         store.write_player(@player);
 
@@ -978,17 +1064,24 @@ mod tests {
         store.write_enemy(@enemy);
 
         // Action
-        store.distribute_rewards(enemy.id, player.address);
+        store.distribute_rewards(player_system_contract_address, enemy.id, player.address);
 
         // Assertions
         let updated_player = store.read_player(player.address.into());
-        assert(updated_player.coins == enemy.coin_reward.into(), 'Coins should match reward');
+        assert(
+            player_system_dispatcher.get_coins(player.address) == enemy.coin_reward.into(),
+            'Coins should match reward',
+        );
         assert(updated_player.xp == enemy.xp_reward, 'XP should match reward');
     }
 
     #[test]
     fn test_distribute_rewards_multiple_players_and_enemies() {
-        let world = create_test_world();
+        let player_system_contract_address = create_test_player_system();
+        let player_system_dispatcher = IPlayerSystemDispatcher {
+            contract_address: player_system_contract_address,
+        };
+        let world = create_test_world(player_system_contract_address);
         let mut store: Store = StoreTrait::new(world);
 
         // Setup: Two players, two enemies
@@ -1005,14 +1098,19 @@ mod tests {
         store.write_enemy(@enemy_2);
 
         // Action 1: Player A claims reward for Enemy 1
-        store.distribute_rewards(enemy_1.id, player_a.address);
+        store.distribute_rewards(player_system_contract_address, enemy_1.id, player_a.address);
 
         // Assertions for Action 1
         let updated_player_a = store.read_player(player_a.address.into());
         let updated_player_b = store.read_player(player_b.address.into());
-        assert(updated_player_a.coins == 10, 'Player A coins incorrect');
+        assert(
+            player_system_dispatcher.get_coins(player_a.address) == 10, 'Player A coins incorrect',
+        );
         assert(updated_player_a.xp == 20, 'Player A XP incorrect');
-        assert!(updated_player_b.coins == 0, "Player B coins should not change");
+        assert!(
+            player_system_dispatcher.get_coins(player_b.address) == 0,
+            "Player B coins should not change",
+        );
         assert(updated_player_b.xp == 0, 'Player B XP should not change');
 
         let updated_enemy_1 = store.read_enemy(enemy_1.id);
@@ -1021,13 +1119,19 @@ mod tests {
         assert!(updated_enemy_2.reward_claimed == false, "Enemy 2 reward should not be claimed");
 
         // Action 2: Player B claims reward for Enemy 2
-        store.distribute_rewards(enemy_2.id, player_b.address);
+        store.distribute_rewards(player_system_contract_address, enemy_2.id, player_b.address);
 
         // Assertions for Action 2
         let final_player_a = store.read_player(player_a.address.into());
         let final_player_b = store.read_player(player_b.address.into());
-        assert!(final_player_a.coins == 10, "Player A coins should not change again");
-        assert(final_player_b.coins == 25, 'Player B coins incorrect');
+        assert!(
+            player_system_dispatcher.get_coins(final_player_a.address) == 10,
+            "Player A coins should not change again",
+        );
+        assert(
+            player_system_dispatcher.get_coins(final_player_b.address) == 25,
+            'Player B coins incorrect',
+        );
         assert(final_player_b.xp == 50, 'Player B XP incorrect');
 
         let final_enemy_2 = store.read_enemy(enemy_2.id);
