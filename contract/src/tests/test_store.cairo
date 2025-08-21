@@ -12,7 +12,7 @@ mod tests {
     use stark_brawl::models::statistics::{Statistics, StatisticsImpl, ZeroableStatistics};
     use stark_brawl::models::leaderboard::{LeaderboardEntry, ZeroableLeaderboardEntry};
     use stark_brawl::store::{Store, StoreTrait};
-    use starknet::{contract_address_const};
+    use starknet::{ContractAddress ,contract_address_const};
     use stark_brawl::models::player::{Player, PlayerImpl, spawn_player};
 
     // System imports
